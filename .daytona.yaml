@@ -1,0 +1,30 @@
+# Daytona Workspace Configuration
+name: diradar
+image: mcr.microsoft.com/devcontainers/python:3.10
+
+# Workspace settings
+workspace:
+  ide: vscode
+  
+# Port forwarding for Streamlit
+ports:
+  - port: 7860
+    name: Streamlit App
+    protocol: http
+    
+# Environment variables
+env:
+  - name: PYTHONUNBUFFERED
+    value: "1"
+  - name: PYTHONDONTWRITEBYTECODE
+    value: "1"
+
+# Commands to run on workspace creation
+postCreateCommands:
+  - chmod +x bootstrap.sh
+  - echo "Workspace ready! Run ./bootstrap.sh to start the app"
+
+# Commands to run on workspace start
+postStartCommands:
+  - echo "🛰️ Deepfake Intelligence Radar workspace is ready!"
+  - echo "Run ./bootstrap.sh to install dependencies and start the app"
