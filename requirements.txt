@@ -1,0 +1,14 @@
+﻿# Core dependencies with pinned versions for reproducibility
+# Python 3.10 required
+
+# Data processing
+getdaft==0.3.7
+numpy==2.2.6
+
+# Image processing and computer vision
+pillow==11.3.0
+opencv-python-headless==4.12.0.88
+mediapipe==0.10.14
+
+# Web application framework
+streamlit==1.49.0
