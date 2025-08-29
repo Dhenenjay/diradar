@@ -463,12 +463,12 @@ def build_df(paths: Union[List[Union[str, Path]], Union[str, Path]]) -> daft.Dat
     df = daft.from_pydict({"path": paths})
 
     # Read file bytes as a new column
-    df = df.with_column("bytes", col("path").map(_read_file_bytes, return_dtype=DataType.binary()))
+    df = df.with_column("bytes", col("path").apply(_read_file_bytes, return_dtype=DataType.binary()))
 
     # Apply ELA UDF -> returns (png_bytes, score)
     df = df.with_column(
         "ela_tuple",
-        col("bytes").map(
+        col("bytes").apply(
             lambda b: ela_bytes(b, quality=90, colormap="inferno"),
             return_dtype=DataType.python(),
         ),
@@ -477,48 +477,29 @@ def build_df(paths: Union[List[Union[str, Path]], Union[str, Path]]) -> daft.Dat
     # Extract ela_png and ela_score from the tuple
     df = df.with_columns(
         {
-            "ela_png": col("ela_tuple").map(lambda t: t[0], return_dtype=DataType.binary()),
-            "ela_score": col("ela_tuple").map(lambda t: float(t[1]), return_dtype=DataType.float32()),
+            "ela_png": col("ela_tuple").apply(lambda t: t[0], return_dtype=DataType.binary()),
+            "ela_score": col("ela_tuple").apply(lambda t: float(t[1]), return_dtype=DataType.float32()),
         }
-    ).drop_columns(["ela_tuple"])
+    )
+    # Drop the ela_tuple column by selecting all others
+    df = df.select(col("path"), col("bytes"), col("ela_png"), col("ela_score"))
 
     # FFT score
     df = df.with_column(
         "fft_score",
-        col("bytes").map(lambda b: float(fft_score(b)), return_dtype=DataType.float32()),
+        col("bytes").apply(lambda b: float(fft_score(b)), return_dtype=DataType.float32()),
     )
 
     # Face confidence
     df = df.with_column(
         "face_conf",
-        col("bytes").map(lambda b: float(face_landmark_conf(b)), return_dtype=DataType.float32()),
+        col("bytes").apply(lambda b: float(face_landmark_conf(b)), return_dtype=DataType.float32()),
     )
 
-    # Suspicion score (reuse already computed per-row values)
-    def _suspicion_row(row: dict) -> float:
-        # Recompute using existing functions for consistency:
-        # pass through bytes to keep logic identical, but it's okay to combine precomputed too
-        return float(
-            suspicion(
-                row["bytes"],
-                ela_weight=0.35,
-                fft_weight=0.35,
-                face_weight=0.30,
-                face_boost_factor=1.5,
-                ela_quality=90,
-            )
-        )
-
+    # Suspicion score - compute directly from bytes
     df = df.with_column(
         "suspicion",
-        daft.concat([col("ela_score"), col("fft_score"), col("face_conf"), col("bytes")])
-        .map(lambda _: None, return_dtype=DataType.null())  # placeholder to preserve schema order
-    )
-
-    # Instead of the placeholder, directly compute via a map over bytes to avoid collecting row dicts
-    df = df.drop_columns(["suspicion"]).with_column(
-        "suspicion",
-        col("bytes").map(
+        col("bytes").apply(
             lambda b: float(suspicion(b, ela_weight=0.35, fft_weight=0.35, face_weight=0.30, face_boost_factor=1.5, ela_quality=90)),
             return_dtype=DataType.float32(),
         ),
